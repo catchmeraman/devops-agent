@@ -1,0 +1,73 @@
+default_agent: jenkins_migration_agent
+agents:
+  jenkins_migration_agent:
+    name: jenkins_migration_agent
+    language: python
+    entrypoint: jenkins-migration-agent/agent.py
+    deployment_type: container
+    platform: linux/arm64
+    source_path: .
+    aws:
+      execution_role: arn:aws:iam::114805761158:role/event-agent-role
+      execution_role_auto_create: false
+      account: '114805761158'
+      region: us-east-1
+      ecr_repository: 114805761158.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-jenkins_migration_agent
+      ecr_auto_create: false
+      network_configuration:
+        network_mode: PUBLIC
+      protocol_configuration:
+        server_protocol: HTTP
+      observability:
+        enabled: true
+    bedrock_agentcore:
+      agent_id: null
+      agent_arn: null
+
+  iac_generator_agent:
+    name: iac_generator_agent
+    language: python
+    entrypoint: iac-generator/agent.py
+    deployment_type: container
+    platform: linux/arm64
+    source_path: .
+    aws:
+      execution_role: arn:aws:iam::114805761158:role/event-agent-role
+      execution_role_auto_create: false
+      account: '114805761158'
+      region: us-east-1
+      ecr_repository: 114805761158.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-iac_generator_agent
+      ecr_auto_create: false
+      network_configuration:
+        network_mode: PUBLIC
+      protocol_configuration:
+        server_protocol: HTTP
+      observability:
+        enabled: true
+    bedrock_agentcore:
+      agent_id: null
+      agent_arn: null
+
+  observability_rca_agent:
+    name: observability_rca_agent
+    language: python
+    entrypoint: observability-rca/agent.py
+    deployment_type: container
+    platform: linux/arm64
+    source_path: .
+    aws:
+      execution_role: arn:aws:iam::114805761158:role/event-agent-role
+      execution_role_auto_create: false
+      account: '114805761158'
+      region: us-east-1
+      ecr_repository: 114805761158.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-observability_rca_agent
+      ecr_auto_create: false
+      network_configuration:
+        network_mode: PUBLIC
+      protocol_configuration:
+        server_protocol: HTTP
+      observability:
+        enabled: true
+    bedrock_agentcore:
+      agent_id: null
+      agent_arn: null
