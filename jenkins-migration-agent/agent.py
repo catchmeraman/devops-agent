@@ -1,3 +1,4 @@
+# built: 1777388120
 """
 Jenkins Migration Agent
 Parses Jenkinsfile and generates ADO (azure-pipelines.yml) or GitLab CI (.gitlab-ci.yml)
@@ -191,7 +192,7 @@ def explain_migration_gaps(jenkinsfile_path: str) -> str:
 # ── Agent ─────────────────────────────────────────────────────────────────────
 
 def build_agent():
-    model = BedrockModel(model_id="anthropic.claude-3-5-sonnet-20241022-v2:0")
+    model = BedrockModel(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0")
     return Agent(
         model=model,
         tools=[migrate_jenkinsfile, explain_migration_gaps],
@@ -203,42 +204,41 @@ def build_agent():
         )
     )
 
-if __name__ == "__main__":
-    """
-    Jenkins Migration Agent
-    =======================
-    Converts a Jenkinsfile into an equivalent Azure DevOps (azure-pipelines.yml)
-    or GitLab CI (.gitlab-ci.yml) pipeline using a Strands + Bedrock agent.
-
-    How it works:
-      1. parse_jenkinsfile()  — regex-extracts stages, steps, env vars, triggers, post hooks
-      2. explain_migration_gaps() tool — flags any Jenkins plugins with no known equivalent
-      3. migrate_jenkinsfile() tool  — calls to_ado() or to_gitlab() and writes the output YAML
-
-    Usage:
-      python agent.py --jenkinsfile sample/Jenkinsfile --target gitlab
-      python agent.py --jenkinsfile sample/Jenkinsfile --target ado
-
-    Output:
-      azure-pipelines.yml  (ADO)
-      .gitlab-ci.yml       (GitLab)
-
-    Supported plugin mappings: maven, gradle, docker, sonarqube, junit,
-    artifactory, aws, terraform, ansible, slack.
-    Unknown plugins are flagged as gaps requiring manual review.
-
-    Requirements:
-      export AWS_REGION=us-east-1
-      pip install strands-agents boto3 pyyaml
-    """
-    parser = argparse.ArgumentParser(description="Jenkins Migration Agent")
-    parser.add_argument("--jenkinsfile", required=True, help="Path to Jenkinsfile")
-    parser.add_argument("--target", required=True, choices=["ado", "gitlab"], help="Target platform")
+def _run_cli():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--jenkinsfile", required=True)
+    parser.add_argument("--target", required=True, choices=["ado", "gitlab"])
     args = parser.parse_args()
+    print(build_agent()(f"Migrate {args.jenkinsfile} to {args.target}. First check for gaps, then generate the pipeline YAML."))
 
-    agent = build_agent()
-    response = agent(
-        f"Migrate {args.jenkinsfile} to {args.target}. "
-        f"First check for gaps, then generate the pipeline YAML."
-    )
-    print(response)
+
+# ── AgentCore Runtime entrypoint ──
+import sys as _sys, traceback as _tb
+
+try:
+    from bedrock_agentcore.runtime import BedrockAgentCoreApp as _App
+    import json as _json
+
+    _app = _App()
+
+    @_app.entrypoint
+    def runtime_handler(payload, context):
+        if isinstance(payload, (bytes, bytearray)):
+            payload = payload.decode()
+        if isinstance(payload, str):
+            payload = _json.loads(payload)
+        prompt = payload.get("prompt", "")
+        if not prompt:
+            return "Error: Missing prompt field."
+        return str(build_agent()(prompt))
+
+    if __name__ == "__main__":
+        _app.run()
+
+except ImportError as _ie:
+    if __name__ == "__main__":
+        _run_cli()
+except Exception as _ex:
+    _tb.print_exc(file=_sys.stderr)
+    _sys.exit(1)
