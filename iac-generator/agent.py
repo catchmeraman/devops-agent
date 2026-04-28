@@ -1,3 +1,4 @@
+# built: 1777388120
 """
 IaC Generator Agent
 Generates CloudFormation / Terraform / CDK from natural language descriptions.
@@ -108,7 +109,7 @@ Be specific about resource names, regions, and best practices (encryption, tags,
 """
 
 def build_agent():
-    model = BedrockModel(model_id="anthropic.claude-3-5-sonnet-20241022-v2:0")
+    model = BedrockModel(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0")
     return Agent(
         model=model,
         tools=[generate_cloudformation, generate_terraform, generate_cdk,
@@ -116,60 +117,42 @@ def build_agent():
         system_prompt=SYSTEM_PROMPT
     )
 
-
-if __name__ == "__main__":
-    """
-    IaC Generator Agent
-    ===================
-    Generates production-ready Infrastructure-as-Code from a natural language description
-    using a Strands + Bedrock agent backed by Claude 3.5 Sonnet.
-
-    How it works:
-      1. You describe the infrastructure in plain English (--description)
-      2. The agent selects the right generator tool based on --format:
-           cfn       → write_iac_file() saves CloudFormation YAML, then
-                       validate_cloudformation() checks structure
-           terraform → write_iac_file() saves main.tf + variables.tf + outputs.tf
-           cdk       → write_iac_file() saves a complete CDK app (Python or TypeScript)
-      3. Output is written to --output (file for cfn, directory for terraform/cdk)
-
-    Usage:
-      python agent.py --format cfn \
-        --description "VPC with 2 public and 2 private subnets and NAT Gateway" \
-        --output infra/vpc.yaml
-
-      python agent.py --format terraform \
-        --description "S3 bucket with versioning, encryption, and CloudFront CDN" \
-        --output infra/s3_cdn
-
-      python agent.py --format cdk \
-        --description "Serverless API: Lambda + API Gateway + DynamoDB" \
-        --output infra/serverless_api
-
-    Sample templates (samples/):
-      01_vpc_with_nat.yaml        CFN  — VPC, subnets, NAT GW
-      02_ecs_fargate_alb.yaml     CFN  — ECS Fargate + ALB + auto-scaling
-      03_rds_aurora/              TF   — Aurora PostgreSQL cluster
-      04_serverless_api_cdk.py    CDK  — Lambda + API GW + DynamoDB
-      05_codepipeline_ecs.yaml    CFN  — CodePipeline → GitHub → ECS
-      06_s3_cloudfront.tf         TF   — S3 + CloudFront CDN
-      07_cloudwatch_alarms.yaml   CFN  — Alarms for ECS/RDS/Lambda/ALB
-
-    Requirements:
-      export AWS_REGION=us-east-1
-      pip install strands-agents boto3 pyyaml
-    """
-    parser = argparse.ArgumentParser(description="IaC Generator Agent")
-    parser.add_argument("--description", required=True, help="What to generate")
+def _run_cli():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--description", required=True)
     parser.add_argument("--format", choices=["cfn", "terraform", "cdk"], default="cfn")
-    parser.add_argument("--output", default="output", help="Output file or directory")
+    parser.add_argument("--output", default="output")
     args = parser.parse_args()
+    print(build_agent()(f"Generate {args.format.upper()} IaC for: {args.description}\nSave output to: {args.output}"))
 
-    agent = build_agent()
-    prompt = (
-        f"Generate {args.format.upper()} IaC for: {args.description}\n"
-        f"Save output to: {args.output}\n"
-        f"After generating, validate the template if it's CloudFormation."
-    )
-    response = agent(prompt)
-    print(response)
+
+# ── AgentCore Runtime entrypoint ──
+import sys as _sys, traceback as _tb
+
+try:
+    from bedrock_agentcore.runtime import BedrockAgentCoreApp as _App
+    import json as _json
+
+    _app = _App()
+
+    @_app.entrypoint
+    def runtime_handler(payload, context):
+        if isinstance(payload, (bytes, bytearray)):
+            payload = payload.decode()
+        if isinstance(payload, str):
+            payload = _json.loads(payload)
+        prompt = payload.get("prompt", "")
+        if not prompt:
+            return "Error: Missing prompt field."
+        return str(build_agent()(prompt))
+
+    if __name__ == "__main__":
+        _app.run()
+
+except ImportError as _ie:
+    if __name__ == "__main__":
+        _run_cli()
+except Exception as _ex:
+    _tb.print_exc(file=_sys.stderr)
+    _sys.exit(1)
