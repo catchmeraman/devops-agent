@@ -1,3 +1,4 @@
+# built: 1777388120
 """
 Observability / RCA Agent
 Investigates incidents by correlating CloudWatch logs, metrics, alarms, and recent deployments.
@@ -233,7 +234,7 @@ Prioritize: recent deployments > config changes > resource exhaustion > external
 """
 
 def build_agent():
-    model = BedrockModel(model_id="anthropic.claude-3-5-sonnet-20241022-v2:0")
+    model = BedrockModel(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0")
     return Agent(
         model=model,
         tools=[get_cloudwatch_alarms, get_recent_logs, get_metric_stats,
@@ -241,64 +242,48 @@ def build_agent():
         system_prompt=SYSTEM_PROMPT
     )
 
-
-if __name__ == "__main__":
-    """
-    Observability / RCA Agent
-    =========================
-    Autonomously investigates production incidents by correlating signals from
-    CloudWatch, CloudTrail, and CodeDeploy, then writes a structured RCA report.
-
-    How it works:
-      The agent follows a systematic investigation loop:
-        1. get_cloudwatch_alarms()    — find active alarms at time of incident
-        2. get_recent_logs()          — pull ERROR/WARN lines from the log group
-        3. get_metric_stats()         — fetch metric datapoints (CPU, latency, errors)
-        4. get_recent_deployments()   — list CodeDeploy deployments in last 24h
-        5. get_cloudtrail_events()    — look for config changes on the resource
-        6. Correlate all signals → identify root cause
-        7. write_rca_report()         — save structured markdown report
-
-    Usage:
-      python agent.py \
-        --incident "prod-api p99 latency > 8s since 10:00 UTC" \
-        --log-group /aws/ecs/prod-api \
-        --resource prod-aurora-cluster \
-        --region us-east-1 \
-        --output output/rca_high_latency.md
-
-    Sample incidents (samples/incidents.py):
-      high_latency       — p99 latency spike (DB query + deploy)
-      lambda_errors      — Lambda error rate spike (memory reduction)
-      rds_connections    — Connection pool exhausted (traffic spike)
-      ecs_crash_loop     — Tasks OOMKilled (memory limit too low)
-      deploy_regression  — 5xx after deploy (missing env var)
-
-    Sample RCA outputs (output/):
-      rca_high_latency.md, rca_lambda_errors.md, rca_rds_connections.md,
-      rca_ecs_crash_loop.md, rca_deploy_regression.md
-
-    Requirements:
-      export AWS_REGION=us-east-1
-      pip install strands-agents boto3
-      IAM permissions: cloudwatch:Describe*, logs:FilterLogEvents,
-                       codedeploy:List*, cloudtrail:LookupEvents
-    """
-    parser = argparse.ArgumentParser(description="Observability / RCA Agent")
-    parser.add_argument("--incident", required=True, help="Incident description")
-    parser.add_argument("--log-group", help="CloudWatch log group to investigate")
-    parser.add_argument("--resource", help="Resource ID/name (EC2, Lambda, RDS, etc.)")
+def _run_cli():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--incident", required=True)
+    parser.add_argument("--log-group", default="")
+    parser.add_argument("--resource", default="")
     parser.add_argument("--region", default="us-east-1")
     parser.add_argument("--output", default="rca_report.md")
     args = parser.parse_args()
+    prompt = (f"Investigate: {args.incident}\n"
+              + (f"Log group: {args.log_group}\n" if args.log_group else "")
+              + (f"Resource: {args.resource}\n" if args.resource else "")
+              + f"Region: {args.region}\nWrite RCA to: {args.output}")
+    print(build_agent()(prompt))
 
-    agent = build_agent()
-    prompt = (
-        f"Investigate this incident: {args.incident}\n"
-        + (f"Log group: {args.log_group}\n" if args.log_group else "")
-        + (f"Resource: {args.resource}\n" if args.resource else "")
-        + f"Region: {args.region}\n"
-        f"Write the RCA report to: {args.output}"
-    )
-    response = agent(prompt)
-    print(response)
+
+# ── AgentCore Runtime entrypoint ──
+import sys as _sys, traceback as _tb
+
+try:
+    from bedrock_agentcore.runtime import BedrockAgentCoreApp as _App
+    import json as _json
+
+    _app = _App()
+
+    @_app.entrypoint
+    def runtime_handler(payload, context):
+        if isinstance(payload, (bytes, bytearray)):
+            payload = payload.decode()
+        if isinstance(payload, str):
+            payload = _json.loads(payload)
+        prompt = payload.get("prompt", "")
+        if not prompt:
+            return "Error: Missing prompt field."
+        return str(build_agent()(prompt))
+
+    if __name__ == "__main__":
+        _app.run()
+
+except ImportError as _ie:
+    if __name__ == "__main__":
+        _run_cli()
+except Exception as _ex:
+    _tb.print_exc(file=_sys.stderr)
+    _sys.exit(1)
