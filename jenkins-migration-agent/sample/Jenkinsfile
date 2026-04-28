@@ -1,0 +1,48 @@
+pipeline {
+    agent any
+    environment {
+        MAVEN_OPTS = '-Xmx1024m'
+        DOCKER_IMAGE = 'myapp:latest'
+        SONAR_TOKEN = 'abc123'
+    }
+    triggers {
+        cron('H 4 * * 1-5')
+    }
+    stages {
+        stage('Build') {
+            steps {
+                sh 'mvn clean package -DskipTests'
+            }
+        }
+        stage('Test') {
+            steps {
+                sh 'mvn test'
+                junit '**/target/surefire-reports/*.xml'
+            }
+        }
+        stage('SonarQube Analysis') {
+            steps {
+                sonarqube sh 'mvn sonar:sonar'
+            }
+        }
+        stage('Docker Build & Push') {
+            steps {
+                docker sh 'docker build -t $DOCKER_IMAGE .'
+                sh 'docker push $DOCKER_IMAGE'
+            }
+        }
+        stage('Deploy') {
+            steps {
+                terraform sh 'terraform apply -auto-approve'
+            }
+        }
+    }
+    post {
+        failure {
+            slack sh 'echo Pipeline failed'
+        }
+        always {
+            sh 'echo Pipeline complete'
+        }
+    }
+}

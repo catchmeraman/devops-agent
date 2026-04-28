@@ -1,0 +1,43 @@
+variables:
+  MAVEN_OPTS: -Xmx1024m
+  DOCKER_IMAGE: myapp:latest
+  SONAR_TOKEN: abc123
+stages:
+- Build
+- Test
+- SonarQube Analysis
+- Docker Build & Push
+- Deploy
+Build:
+  stage: Build
+  script:
+  - mvn clean package -DskipTests
+Test:
+  stage: Test
+  script:
+  - mvn test
+  artifacts:
+    reports:
+      junit:
+      - '**/TEST-*.xml'
+SonarQube_Analysis:
+  stage: SonarQube Analysis
+  script:
+  - sonar-scanner
+  - mvn sonar:sonar
+Docker_Build_Push:
+  stage: Docker Build & Push
+  script:
+  - docker build -t $IMAGE . && docker push $IMAGE
+  - docker build -t $DOCKER_IMAGE .
+  - docker push $DOCKER_IMAGE
+Deploy:
+  stage: Deploy
+  script:
+  - terraform apply -auto-approve
+  - terraform apply -auto-approve
+notify_failure:
+  stage: .post
+  script:
+  - echo Pipeline failed
+  when: on_failure

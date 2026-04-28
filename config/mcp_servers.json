@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "aws-iac": {
+      "command": "uvx",
+      "args": ["awslabs.aws-iac-mcp-server@latest"],
+      "env": { "AWS_REGION": "us-east-1" }
+    },
+    "terraform": {
+      "command": "npx",
+      "args": ["-y", "@hashicorp/terraform-mcp-server"]
+    },
+    "aws-api": {
+      "command": "uvx",
+      "args": ["awslabs.aws-api-mcp-server@latest"],
+      "env": { "AWS_REGION": "us-east-1" }
+    },
+    "cloudwatch": {
+      "command": "uvx",
+      "args": ["awslabs.cloudwatch-mcp-server@latest"],
+      "env": { "AWS_REGION": "us-east-1" }
+    }
+  }
+}
