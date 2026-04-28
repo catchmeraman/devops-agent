@@ -258,6 +258,21 @@ def _run_cli():
     print(build_agent()(prompt))
 
 
+
+def _upload_to_s3_and_get_url(content: str, s3_key: str, bucket: str = "event-agent-kb-114805761158") -> str:
+    """Upload text content to S3 and return a 7-day presigned download URL."""
+    try:
+        import boto3
+        s3 = boto3.client("s3", region_name=os.getenv("AWS_REGION", "us-east-1"))
+        s3.put_object(Bucket=bucket, Key=s3_key, Body=content.encode("utf-8"),
+                      ContentType="text/plain")
+        url = s3.generate_presigned_url("get_object",
+                                         Params={"Bucket": bucket, "Key": s3_key},
+                                         ExpiresIn=604800)  # 7 days
+        return url
+    except Exception as e:
+        return f"(S3 upload failed: {e})"
+
 # ── AgentCore Runtime entrypoint ──
 import sys as _sys, traceback as _tb
 
@@ -276,7 +291,12 @@ try:
         prompt = payload.get("prompt", "")
         if not prompt:
             return "Error: Missing prompt field."
-        return str(build_agent()(prompt))
+        result = str(build_agent()(prompt))
+        # Upload to S3 for download
+        import time as _t
+        key = f"devops-outputs/rca-reports/{int(_t.time())}/rca_report.md"
+        url = _upload_to_s3_and_get_url(result, key)
+        return result + f"\n\n---\n📥 **Download RCA Report**: [Click to download (7 days)]({url})"
 
     if __name__ == "__main__":
         _app.run()
