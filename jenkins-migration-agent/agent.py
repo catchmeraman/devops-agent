@@ -204,6 +204,33 @@ def build_agent():
     )
 
 if __name__ == "__main__":
+    """
+    Jenkins Migration Agent
+    =======================
+    Converts a Jenkinsfile into an equivalent Azure DevOps (azure-pipelines.yml)
+    or GitLab CI (.gitlab-ci.yml) pipeline using a Strands + Bedrock agent.
+
+    How it works:
+      1. parse_jenkinsfile()  — regex-extracts stages, steps, env vars, triggers, post hooks
+      2. explain_migration_gaps() tool — flags any Jenkins plugins with no known equivalent
+      3. migrate_jenkinsfile() tool  — calls to_ado() or to_gitlab() and writes the output YAML
+
+    Usage:
+      python agent.py --jenkinsfile sample/Jenkinsfile --target gitlab
+      python agent.py --jenkinsfile sample/Jenkinsfile --target ado
+
+    Output:
+      azure-pipelines.yml  (ADO)
+      .gitlab-ci.yml       (GitLab)
+
+    Supported plugin mappings: maven, gradle, docker, sonarqube, junit,
+    artifactory, aws, terraform, ansible, slack.
+    Unknown plugins are flagged as gaps requiring manual review.
+
+    Requirements:
+      export AWS_REGION=us-east-1
+      pip install strands-agents boto3 pyyaml
+    """
     parser = argparse.ArgumentParser(description="Jenkins Migration Agent")
     parser.add_argument("--jenkinsfile", required=True, help="Path to Jenkinsfile")
     parser.add_argument("--target", required=True, choices=["ado", "gitlab"], help="Target platform")
